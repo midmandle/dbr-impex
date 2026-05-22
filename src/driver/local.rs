@@ -27,7 +27,7 @@ pub struct LocalDriver {
 }
 
 impl LocalDriver {
-    pub fn new(config: LocalConfig) -> Self {
+    fn new(config: LocalConfig) -> Self {
         Self { config }
     }
 }

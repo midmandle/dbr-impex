@@ -5,6 +5,9 @@ use clap::{Args, Parser, Subcommand};
 #[command(version = "1.0")]
 #[command(about = "Databricks importer/exporter", long_about = None)]
 struct Cli {
+    workspace_url: String,
+    dbfs_path: String,
+    auth_token: String,
     #[command(subcommand)]
     command: Commands,
 }

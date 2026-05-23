@@ -24,7 +24,7 @@ pub fn transfer(source: &impl DataSource, sink: &impl DataSink) -> Result<(), Tr
 }
 
 #[derive(Error, Debug)]
-enum TransferError {
+pub enum TransferError {
     #[error("could not read from source: {0}")]
     Read(Box<dyn std::error::Error + 'static>),
     #[error("could not write to sink")]

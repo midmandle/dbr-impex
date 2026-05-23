@@ -1,4 +1,10 @@
+use std::path::PathBuf;
+
 use clap::{Args, Parser, Subcommand};
+use dbr_impex::{
+    driver::{databricks::DatabricksConfig, local::LocalConfig},
+    transfer::{self, transfer},
+};
 
 #[derive(Parser)]
 #[command(name = "dbr-impex")]
@@ -37,7 +43,9 @@ enum Source {
 }
 
 #[derive(Args)]
-struct LocalSourceArgs {}
+struct LocalSourceArgs {
+    path: String,
+}
 
 //SINK COMMANDS
 #[derive(Subcommand)]
@@ -51,9 +59,18 @@ struct LocalSinkArgs {}
 fn main() {
     let cli = Cli::parse();
 
+    let client = reqwest::blocking::Client::new();
+    let databricks_sink =
+        DatabricksConfig::new(client, cli.workspace_url, cli.auth_token, cli.dbfs_path).build();
+
     match cli.command {
         Commands::Import(import_args) => match import_args.source {
-            Source::Local(local_source_args) => todo!(),
+            Source::Local(local_source_args) => {
+                let local_file_path = PathBuf::from(local_source_args.path);
+                let source = LocalConfig::new(local_file_path).build();
+
+                transfer(&source, &databricks_sink).unwrap();
+            }
         },
         Commands::Export(export_args) => match export_args.sink {
             Sink::Local(local_sink_args) => todo!(),

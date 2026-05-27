@@ -3,49 +3,46 @@ use thiserror::Error;
 
 use crate::transfer::{DataSink, DataSource};
 
-pub struct FtpConfig {
-    address: String,
-    username: String,
-    password: String,
+pub struct GcsConfig {
+    bucket: String,
+    credential: String,
     path: String,
 }
 
-impl FtpConfig {
-    pub fn new(address: String, username: String, password: String, path: String) -> Self {
+impl GcsConfig {
+    pub fn new(bucket: String, credential: String, path: String) -> Self {
         Self {
-            address,
-            username,
-            password,
+            bucket,
+            credential,
             path,
         }
     }
 
-    pub fn build(self) -> FtpDriver {
-        FtpDriver::new(self)
+    pub fn build(self) -> GcsDriver {
+        GcsDriver::new(self)
     }
 }
 
-pub struct FtpDriver {
-    config: FtpConfig,
+pub struct GcsDriver {
+    config: GcsConfig,
 }
 
-impl FtpDriver {
-    fn new(config: FtpConfig) -> Self {
+impl GcsDriver {
+    fn new(config: GcsConfig) -> Self {
         Self { config }
     }
 
     fn operator(&self) -> Result<Operator, opendal::Error> {
-        let builder = services::Ftp::default()
-            .endpoint(&self.config.address)
-            .password(&self.config.password)
-            .user(&self.config.username);
+        let builder = services::Gcs::default()
+            .bucket(&self.config.bucket)
+            .credential(&self.config.credential);
 
         Ok(Operator::new(builder)?.finish())
     }
 }
 
-impl DataSource for FtpDriver {
-    type Error = FtpError;
+impl DataSource for GcsDriver {
+    type Error = GcsError;
 
     async fn read(&self) -> Result<Vec<u8>, Self::Error> {
         let op = self.operator()?;
@@ -55,8 +52,8 @@ impl DataSource for FtpDriver {
     }
 }
 
-impl DataSink for FtpDriver {
-    type Error = FtpError;
+impl DataSink for GcsDriver {
+    type Error = GcsError;
 
     async fn write(&self, bytes: &[u8]) -> Result<(), Self::Error> {
         let op = self.operator()?;
@@ -67,7 +64,7 @@ impl DataSink for FtpDriver {
 }
 
 #[derive(Error, Debug)]
-pub enum FtpError {
-    #[error("FTP operation failed: {0}")]
+pub enum GcsError {
+    #[error("GCS operation failed: {0}")]
     Operation(#[from] opendal::Error),
 }

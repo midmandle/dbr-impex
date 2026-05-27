@@ -1,4 +1,7 @@
+pub mod azure_blob;
 pub mod databricks;
-mod ftp;
+pub mod ftp;
+pub mod gcs;
 pub mod local;
-mod sftp;
+pub mod s3;
+pub mod sftp;

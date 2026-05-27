@@ -14,7 +14,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1.0.102"
 clap = { version = "4.6.1", features = ["derive"] }
-opendal = { version = "0.56.0", features = ["services-dbfs", "services-ftp", "services-sftp"] }
+opendal = { version = "0.56.0", features = ["services-azblob", "services-dbfs", "services-ftp", "services-gcs", "services-s3", "services-sftp"] }
 tempdir = "0.3.7"
 thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["rt-multi-thread"] }

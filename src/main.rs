@@ -2,7 +2,15 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use dbr_impex::{
-    driver::{databricks::DatabricksConfig, local::LocalConfig},
+    driver::{
+        azure_blob::AzureBlobConfig,
+        databricks::DatabricksConfig,
+        ftp::FtpConfig,
+        gcs::GcsConfig,
+        local::LocalConfig,
+        s3::S3Config,
+        sftp::SftpConfig,
+    },
     transfer::transfer,
 };
 use tokio::runtime::Runtime;
@@ -37,44 +45,173 @@ struct ExportArgs {
     sink: Sink,
 }
 
-//SOURCE COMMANDS
-#[derive(Subcommand)]
-enum Source {
-    Local(LocalSourceArgs),
-}
-
 #[derive(Args)]
-struct LocalSourceArgs {
+struct LocalArgs {
     path: String,
 }
 
-//SINK COMMANDS
-#[derive(Subcommand)]
-enum Sink {
-    Local(LocalSinkArgs),
+#[derive(Args)]
+struct S3Args {
+    bucket: String,
+    region: String,
+    access_key_id: String,
+    secret_access_key: String,
+    path: String,
 }
 
 #[derive(Args)]
-struct LocalSinkArgs {}
+struct AzureBlobArgs {
+    container: String,
+    account_name: String,
+    account_key: String,
+    path: String,
+}
+
+#[derive(Args)]
+struct GcsArgs {
+    bucket: String,
+    credential: String,
+    path: String,
+}
+
+#[derive(Args)]
+struct FtpArgs {
+    address: String,
+    username: String,
+    password: String,
+    path: String,
+}
+
+#[derive(Args)]
+struct SftpArgs {
+    address: String,
+    username: String,
+    key_path: String,
+    path: String,
+}
+
+#[derive(Subcommand)]
+enum Source {
+    Local(LocalArgs),
+    S3(S3Args),
+    AzureBlob(AzureBlobArgs),
+    Gcs(GcsArgs),
+    Ftp(FtpArgs),
+    Sftp(SftpArgs),
+}
+
+#[derive(Subcommand)]
+enum Sink {
+    Local(LocalArgs),
+    S3(S3Args),
+    AzureBlob(AzureBlobArgs),
+    Gcs(GcsArgs),
+    Ftp(FtpArgs),
+    Sftp(SftpArgs),
+}
 
 fn main() {
     let cli = Cli::parse();
     let rt = Runtime::new().unwrap();
 
-    let databricks_sink =
-        DatabricksConfig::new(cli.workspace_url, cli.auth_token, cli.dbfs_path).build();
-
     match cli.command {
-        Commands::Import(import_args) => match import_args.source {
-            Source::Local(local_source_args) => {
-                let local_file_path = PathBuf::from(local_source_args.path);
-                let source = LocalConfig::new(local_file_path).build();
+        Commands::Import(import_args) => {
+            let sink =
+                DatabricksConfig::new(cli.workspace_url, cli.auth_token, cli.dbfs_path).build();
 
-                rt.block_on(async { transfer(&source, &databricks_sink).await.unwrap() });
+            match import_args.source {
+                Source::Local(args) => {
+                    let source = LocalConfig::new(PathBuf::from(args.path)).build();
+                    rt.block_on(async { transfer(&source, &sink).await.unwrap() });
+                }
+                Source::S3(args) => {
+                    let source = S3Config::new(
+                        args.bucket,
+                        args.region,
+                        args.access_key_id,
+                        args.secret_access_key,
+                        args.path,
+                    )
+                    .build();
+                    rt.block_on(async { transfer(&source, &sink).await.unwrap() });
+                }
+                Source::AzureBlob(args) => {
+                    let source = AzureBlobConfig::new(
+                        args.container,
+                        args.account_name,
+                        args.account_key,
+                        args.path,
+                    )
+                    .build();
+                    rt.block_on(async { transfer(&source, &sink).await.unwrap() });
+                }
+                Source::Gcs(args) => {
+                    let source =
+                        GcsConfig::new(args.bucket, args.credential, args.path).build();
+                    rt.block_on(async { transfer(&source, &sink).await.unwrap() });
+                }
+                Source::Ftp(args) => {
+                    let source =
+                        FtpConfig::new(args.address, args.username, args.password, args.path)
+                            .build();
+                    rt.block_on(async { transfer(&source, &sink).await.unwrap() });
+                }
+                Source::Sftp(args) => {
+                    let source =
+                        SftpConfig::new(args.address, args.username, args.key_path, args.path)
+                            .build();
+                    rt.block_on(async { transfer(&source, &sink).await.unwrap() });
+                }
             }
-        },
-        Commands::Export(export_args) => match export_args.sink {
-            Sink::Local(local_sink_args) => todo!(),
-        },
+        }
+        Commands::Export(export_args) => {
+            let source =
+                DatabricksConfig::new(cli.workspace_url, cli.auth_token, cli.dbfs_path).build();
+
+            match export_args.sink {
+                Sink::Local(args) => {
+                    let sink = LocalConfig::new(PathBuf::from(args.path)).build();
+                    rt.block_on(async { transfer(&source, &sink).await.unwrap() });
+                }
+                Sink::S3(args) => {
+                    let sink = S3Config::new(
+                        args.bucket,
+                        args.region,
+                        args.access_key_id,
+                        args.secret_access_key,
+                        args.path,
+                    )
+                    .build();
+                    rt.block_on(async { transfer(&source, &sink).await.unwrap() });
+                }
+                Sink::AzureBlob(args) => {
+                    let sink = AzureBlobConfig::new(
+                        args.container,
+                        args.account_name,
+                        args.account_key,
+                        args.path,
+                    )
+                    .build();
+                    rt.block_on(async { transfer(&source, &sink).await.unwrap() });
+                }
+                Sink::Gcs(args) => {
+                    let sink =
+                        GcsConfig::new(args.bucket, args.credential, args.path).build();
+                    rt.block_on(async { transfer(&source, &sink).await.unwrap() });
+                }
+                Sink::Ftp(args) => {
+                    let sink =
+                        FtpConfig::new(args.address, args.username, args.password, args.path)
+                            .build();
+                    rt.block_on(async { transfer(&source, &sink).await.unwrap() });
+                }
+                Sink::Sftp(args) => {
+                    let sink =
+                        SftpConfig::new(args.address, args.username, args.key_path, args.path)
+                            .build();
+                    rt.block_on(async { transfer(&source, &sink).await.unwrap() });
+                }
+            }
+        }
     }
 }

@@ -1,7 +1,7 @@
 use opendal::{Operator, services};
 use thiserror::Error;
 
-use crate::transfer::DataSink;
+use crate::transfer::{DataSink, DataSource};
 
 pub struct DatabricksConfig {
     workspace_url: String,
@@ -31,27 +31,40 @@ impl DatabricksDriver {
     fn new(config: DatabricksConfig) -> Self {
         Self { config }
     }
-}
 
-impl DataSink for DatabricksDriver {
-    type Error = DatabricksSinkError;
-
-    async fn write(&self, bytes: &[u8]) -> Result<(), Self::Error> {
-        let mut builder = services::Dbfs::default();
-        builder = builder
+    fn operator(&self) -> Result<Operator, opendal::Error> {
+        let builder = services::Dbfs::default()
             .endpoint(&self.config.workspace_url)
             .token(&self.config.auth_token);
 
-        let op = Operator::new(builder)?.finish();
+        Ok(Operator::new(builder)?.finish())
+    }
+}
+
+impl DataSource for DatabricksDriver {
+    type Error = DatabricksError;
+
+    async fn read(&self) -> Result<Vec<u8>, Self::Error> {
+        let op = self.operator()?;
+        let path = self.config.dbfs_path.trim_start_matches('/');
+        let bytes = op.read(path).await?;
+        Ok(bytes.to_vec())
+    }
+}
+
+impl DataSink for DatabricksDriver {
+    type Error = DatabricksError;
+
+    async fn write(&self, bytes: &[u8]) -> Result<(), Self::Error> {
+        let op = self.operator()?;
         let path = self.config.dbfs_path.trim_start_matches('/');
         op.write(path, bytes.to_vec()).await?;
-
         Ok(())
     }
 }
 
 #[derive(Error, Debug)]
-pub enum DatabricksSinkError {
-    #[error("unable to write to DBFS: {0}")]
-    Write(#[from] opendal::Error),
+pub enum DatabricksError {
+    #[error("Databricks DBFS operation failed: {0}")]
+    Operation(#[from] opendal::Error),
 }

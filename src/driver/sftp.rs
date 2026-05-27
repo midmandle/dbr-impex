@@ -1,9 +1,9 @@
 use opendal::{Operator, services};
 use thiserror::Error;
 
-use crate::{driver::sftp, transfer::DataSource};
+use crate::transfer::{DataSink, DataSource};
 
-struct SftpConfig {
+pub struct SftpConfig {
     address: String,
     username: String,
     key_path: String,
@@ -11,7 +11,7 @@ struct SftpConfig {
 }
 
 impl SftpConfig {
-    fn new(address: String, username: String, key_path: String, path: String) -> Self {
+    pub fn new(address: String, username: String, key_path: String, path: String) -> Self {
         Self {
             address,
             username,
@@ -25,7 +25,7 @@ impl SftpConfig {
     }
 }
 
-struct SftpDriver {
+pub struct SftpDriver {
     config: SftpConfig,
 }
 
@@ -33,29 +33,41 @@ impl SftpDriver {
     fn new(config: SftpConfig) -> Self {
         Self { config }
     }
-}
 
-impl DataSource for SftpDriver {
-    type Error = SftpSourceError;
-
-    async fn read(&self) -> Result<Vec<u8>, Self::Error> {
-        let mut builder = services::Sftp::default();
-
-        builder = builder
+    fn operator(&self) -> Result<Operator, opendal::Error> {
+        let builder = services::Sftp::default()
             .endpoint(&self.config.address)
             .user(&self.config.username)
             .key(&self.config.key_path);
 
-        let op = Operator::new(builder)?.finish();
+        Ok(Operator::new(builder)?.finish())
+    }
+}
 
-        let bytes = op.read(&self.config.path).await?;
+impl DataSource for SftpDriver {
+    type Error = SftpError;
 
+    async fn read(&self) -> Result<Vec<u8>, Self::Error> {
+        let op = self.operator()?;
+        let path = self.config.path.trim_start_matches('/');
+        let bytes = op.read(path).await?;
         Ok(bytes.to_vec())
     }
 }
 
+impl DataSink for SftpDriver {
+    type Error = SftpError;
+
+    async fn write(&self, bytes: &[u8]) -> Result<(), Self::Error> {
+        let op = self.operator()?;
+        let path = self.config.path.trim_start_matches('/');
+        op.write(path, bytes.to_vec()).await?;
+        Ok(())
+    }
+}
+
 #[derive(Error, Debug)]
-pub enum SftpSourceError {
-    #[error("unable to read source")]
-    Read(#[from] opendal::Error),
+pub enum SftpError {
+    #[error("SFTP operation failed: {0}")]
+    Operation(#[from] opendal::Error),
 }

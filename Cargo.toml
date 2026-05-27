@@ -13,13 +13,11 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.102"
-base64 = "0.22.1"
 clap = { version = "4.6.1", features = ["derive"] }
-reqwest = { version = "0.13.3", features = ["blocking", "json", "multipart"] }
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+opendal = { version = "0.56.0", features = ["services-dbfs", "services-ftp", "services-sftp"] }
 tempdir = "0.3.7"
 thiserror = "2.0.18"
+tokio = { version = "1.52.3", features = ["rt-multi-thread"] }
 
 [dev-dependencies]
-httpmock = "0.8.3"
+tokio = { version = "1.52.3", features = ["rt", "macros"] }

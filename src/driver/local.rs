@@ -35,7 +35,7 @@ impl LocalDriver {
 impl DataSource for LocalDriver {
     type Error = LocalSourceError;
 
-    fn read(&self) -> Result<Vec<u8>, Self::Error> {
+    async fn read(&self) -> Result<Vec<u8>, Self::Error> {
         let file_path = self.config.path.as_path();
         let file = File::open(file_path)?;
 
@@ -57,7 +57,7 @@ pub enum LocalSourceError {
 impl DataSink for LocalDriver {
     type Error = LocalSinkError;
 
-    fn write(&self, bytes: &[u8]) -> Result<(), Self::Error> {
+    async fn write(&self, bytes: &[u8]) -> Result<(), Self::Error> {
         let file_path = self.config.path.as_path();
         let mut file = File::create(file_path)?;
 
@@ -87,8 +87,8 @@ mod test {
         transfer::{DataSink, DataSource},
     };
 
-    #[test]
-    fn reads_bytes_from_source() {
+    #[tokio::test]
+    async fn reads_bytes_from_source() {
         let file_name = "foo.csv";
         let tempdir = TempDir::new("in").expect("should be able to create a tempdir: in");
         let file_path = tempdir.path().join(file_name);
@@ -99,13 +99,14 @@ mod test {
         let local_source = LocalConfig::new(file_path).build();
         let bytes = local_source
             .read()
+            .await
             .expect("should be able to read from source");
 
         assert_eq!(bytes, b"Hello, world!");
     }
 
-    #[test]
-    fn writes_bytes_to_sink() {
+    #[tokio::test]
+    async fn writes_bytes_to_sink() {
         let file_name = "foo.csv";
         let tempdir = TempDir::new("in").expect("should be able to create a tempdir: in");
         let file_path = tempdir.path().join(file_name);
@@ -113,6 +114,7 @@ mod test {
         let local_sink = LocalConfig::new(file_path.clone()).build();
         local_sink
             .write(b"Hello, world!")
+            .await
             .expect("should be able to write to sink");
 
         let bytes: Vec<u8> = File::open(file_path)

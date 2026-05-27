@@ -3,21 +3,23 @@ use thiserror::Error;
 pub trait DataSource {
     type Error: std::error::Error + 'static;
 
-    fn read(&self) -> Result<Vec<u8>, Self::Error>;
+    fn read(&self) -> impl Future<Output = Result<Vec<u8>, Self::Error>>;
 }
 
 pub trait DataSink {
     type Error: std::error::Error + 'static;
 
-    fn write(&self, bytes: &[u8]) -> Result<(), Self::Error>;
+    fn write(&self, bytes: &[u8]) -> impl Future<Output = Result<(), Self::Error>>;
 }
 
-pub fn transfer(source: &impl DataSource, sink: &impl DataSink) -> Result<(), TransferError> {
+pub async fn transfer(source: &impl DataSource, sink: &impl DataSink) -> Result<(), TransferError> {
     let resource_data = source
         .read()
+        .await
         .map_err(|e| TransferError::Read(Box::new(e)))?;
 
     sink.write(&resource_data)
+        .await
         .map_err(|e| TransferError::Write(Box::new(e)))?;
 
     Ok(())
@@ -42,8 +44,8 @@ mod test {
 
     use crate::{driver::local::LocalConfig, transfer::transfer};
 
-    #[test]
-    fn transfers_from_source_to_sink() {
+    #[tokio::test]
+    async fn transfers_from_source_to_sink() {
         let file_name = "foo.csv";
         let in_tempdir = TempDir::new("in").expect("should be able to create a tempdir: in");
         let in_file_path = in_tempdir.path().join(file_name);
@@ -55,7 +57,9 @@ mod test {
         let local_source_in = LocalConfig::new(in_file_path).build();
         let local_source_out = LocalConfig::new(out_file_path).build();
 
-        transfer(&local_source_in, &local_source_out).expect("should transfer to/from local");
+        transfer(&local_source_in, &local_source_out)
+            .await
+            .expect("should transfer to/from local");
 
         let mut outdir_contents =
             read_dir(out_tempdir.path()).expect("should be able to read tempdir: out");
@@ -67,8 +71,8 @@ mod test {
         );
     }
 
-    #[test]
-    fn errors_on_source_failure() {
+    #[tokio::test]
+    async fn errors_on_source_failure() {
         let file_name = "foo.csv";
         let in_tempdir = TempDir::new("in").expect("should be able to create a tempdir: in");
         let in_file_path = in_tempdir.path().join(file_name);
@@ -80,13 +84,13 @@ mod test {
         let local_source_in = LocalConfig::new(in_file_path).build();
         let local_source_out = LocalConfig::new(out_file_path).build();
 
-        let result = transfer(&local_source_in, &local_source_out);
+        let result = transfer(&local_source_in, &local_source_out).await;
 
         assert!(result.is_err());
     }
 
-    #[test]
-    fn errors_on_sink_failure() {
+    #[tokio::test]
+    async fn errors_on_sink_failure() {
         let file_name = "foo.csv";
         let in_tempdir = TempDir::new("in").expect("should be able to create a tempdir: in");
         let in_file_path = in_tempdir.path().join(file_name);
@@ -97,7 +101,7 @@ mod test {
         let local_source_in = LocalConfig::new(in_file_path).build();
         let local_source_out = LocalConfig::new(out_file_path).build();
 
-        let result = transfer(&local_source_in, &local_source_out);
+        let result = transfer(&local_source_in, &local_source_out).await;
 
         assert!(result.is_err());
     }

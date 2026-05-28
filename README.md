@@ -4,7 +4,7 @@ A command-line tool for importing and exporting files to and from Databricks.
 
 ## Overview
 
-`dbr-impex` transfers files between external storage locations and Databricks. It is built around a simple `DataSource` / `DataSink` trait pair: any driver that implements `DataSource` can feed data into any driver that implements `DataSink`, and the core `transfer` function handles the rest.
+`dbr-impex` transfers files between external storage locations and Databricks DBFS. It is built around a simple `DataSource` / `DataSink` trait pair: any driver that implements `DataSource` can feed data into any driver that implements `DataSink`, and the core `transfer` function handles the rest.
 
 ## Architecture
 
@@ -14,10 +14,13 @@ src/
 ├── lib.rs
 ├── transfer.rs      # DataSource / DataSink traits + transfer()
 └── driver/
-    ├── local.rs     # Local filesystem (source + sink) ✓
-    ├── databricks.rs# Databricks (sink)               ⚙ in progress
-    ├── ftp.rs       # FTP (source)                    ⚙ in progress
-    └── sftp.rs      # SFTP (source)                   ⚙ in progress
+    ├── local.rs     # Local filesystem (source + sink)
+    ├── databricks.rs# Databricks DBFS (source + sink)
+    ├── s3.rs        # AWS S3 (source + sink)
+    ├── azure_blob.rs# Azure Blob Storage (source + sink)
+    ├── gcs.rs       # Google Cloud Storage (source + sink)
+    ├── ftp.rs       # FTP (source + sink)
+    └── sftp.rs      # SFTP (source + sink)
 ```
 
 The `transfer(source, sink)` function is driver-agnostic — adding a new storage backend only requires implementing one or both traits for that driver.
@@ -25,14 +28,36 @@ The `transfer(source, sink)` function is driver-agnostic — adding a new storag
 ## Usage
 
 ```
-dbr-impex <COMMAND>
+dbr-impex <WORKSPACE_URL> <DBFS_PATH> <AUTH_TOKEN> <COMMAND>
 
 Commands:
   import   Transfer data into Databricks
   export   Transfer data out of Databricks
 ```
 
-> **Note:** The CLI is under active development. Currently only local-to-local transfers are wired up end-to-end; Databricks, FTP, and SFTP integrations are in progress.
+Databricks (`WORKSPACE_URL`, `DBFS_PATH`, `AUTH_TOKEN`) is always the fixed endpoint. The subcommand selects the external backend.
+
+### Import sources
+
+```
+import local   <PATH>
+import s3      <BUCKET> <REGION> <ACCESS_KEY_ID> <SECRET_ACCESS_KEY> <PATH>
+import azure-blob <CONTAINER> <ACCOUNT_NAME> <ACCOUNT_KEY> <PATH>
+import gcs     <BUCKET> <CREDENTIAL> <PATH>
+import ftp     <ADDRESS> <USERNAME> <PASSWORD> <PATH>
+import sftp    <ADDRESS> <USERNAME> <KEY_PATH> <PATH>
+```
+
+### Export sinks
+
+```
+export local   <PATH>
+export s3      <BUCKET> <REGION> <ACCESS_KEY_ID> <SECRET_ACCESS_KEY> <PATH>
+export azure-blob <CONTAINER> <ACCOUNT_NAME> <ACCOUNT_KEY> <PATH>
+export gcs     <BUCKET> <CREDENTIAL> <PATH>
+export ftp     <ADDRESS> <USERNAME> <PASSWORD> <PATH>
+export sftp    <ADDRESS> <USERNAME> <KEY_PATH> <PATH>
+```
 
 ## Building
 
@@ -55,7 +80,8 @@ Tests cover the local driver (read/write) and the core transfer function (succes
 | Crate | Purpose |
 |-------|---------|
 | `clap` | CLI argument parsing |
-| `reqwest` | HTTP client for the Databricks REST API |
+| `opendal` | Unified storage access (DBFS, S3, Azure Blob, GCS, FTP, SFTP) |
 | `thiserror` | Typed error definitions per driver |
 | `anyhow` | Top-level error propagation |
+| `tokio` | Async runtime |
 | `tempdir` | Temporary directories used in tests |
